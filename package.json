@@ -1,0 +1,78 @@
+{
+  "name": "shogun-starter",
+  "version": "1.0.0",
+  "description": "Shogun starter template with React, authentication, and decentralized infrastructure",
+  "type": "module",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite --port 8080",
+    "build": "vite build",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "serve": "vite preview --port 8080",
+    "start": "vite --port 8080"
+  },
+  "keywords": [
+    "shogun",
+    "starter",
+    "template",
+    "react",
+    "gun",
+    "decentralized",
+    "authentication",
+    "vite"
+  ],
+  "author": "Shogun Team",
+  "license": "MIT",
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.10",
+    "@tailwindcss/vite": "^4.1.10",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "daisyui": "^5.0.43",
+    "dotenv": "^17.2.0",
+    "gun": "^0.2020.1241",
+    "gun-avatar": "^2.2.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.6.2",
+    "shogun-button-react": "^6.4.4",
+    "shogun-core": "^6.4.4",
+    "shogun-onion": "^0.1.16",
+    "shogun-relays": "^1.0.8",
+    "shogun-theme": "^1.0.3",
+    "tailwindcss-animate": "^1.0.7",
+    "uuid": "^11.1.0",
+    "vite-plugin-node-polyfills": "^0.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.1",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-legacy": "^5.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.5",
+    "tailwindcss": "^4.1.10",
+    "terser": "^5.24.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scobru/shogun-starter"
+  },
+  "bugs": {
+    "url": "https://github.com/scobru/shogun-starter/issues"
+  },
+  "homepage": "http://localhost:8080",
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}

@@ -1,0 +1,122 @@
+/* === SHOGUN THEME - Import tema condiviso === */
+@import "shogun-theme/styles/variables.css";
+@import "shogun-theme/styles/base.css";
+@import "shogun-theme/styles/daisyui-overrides.css";
+
+@import "shogun-onion/onion.css";
+
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* === CUSTOM STYLES PER SHOGUN-STARTER === */
+
+/* Layout generale dell'app */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+
+.app-shell main {
+  flex: 1;
+}
+
+.app-main {
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 3rem;
+  box-sizing: border-box;
+}
+
+.app-main > * {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    padding-top: 3rem;
+    padding-bottom: 4rem;
+  }
+}
+
+/* Header */
+.navbar-custom {
+  background-color: color-mix(in srgb, var(--navbar-bg) 88%, transparent);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.85rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.navbar-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.navbar-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.navbar-title span {
+  display: block;
+  font-size: 1.125rem;
+  line-height: 1.35;
+}
+
+.navbar-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+/* Badge stato autenticazione */
+.badge-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-weight: 500;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.badge-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.7);
+}
+
+.badge-custom.success {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--success-color);
+}
+
+.badge-custom.success .badge-dot {
+  background: #22c55e;
+}
+
+.badge-custom.error {
+  background-color: var(--error-bg);
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
+}
+
+.badge-custom.error .badge-dot {
+  background: var(--error-color);
+}
+
+
