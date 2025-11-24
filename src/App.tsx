@@ -62,7 +62,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <img src={logo} alt="Mistodon" className="w-12 h-12" />
             <div>
               <span className="font-semibold">mistodon</span>
-              <p className="navbar-subtitle">Decentralized social network</p>
             </div>
           </Link>
           <nav className="flex items-center gap-2">
@@ -245,6 +244,8 @@ function App() {
         const fetchedRelays = await window.ShogunRelays.forceListUpdate({
           axe: true,
           wire: true,
+          localStorage: false,
+          radisk: false,
         });
 
         console.log("Fetched relays:", fetchedRelays);
