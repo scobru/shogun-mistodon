@@ -8,23 +8,30 @@ import type { Post } from '../utils/postUtils';
 
 export const PostDetail: React.FC = () => {
   const { postId: rawPostId } = useParams<{ postId: string }>();
-  const postId = rawPostId ? decodeURIComponent(rawPostId) : undefined;
+  // React Router should decode URL params, but handle both cases
+  // Try the raw value first, then try decoded if different
+  const postIdDecoded = rawPostId ? decodeURIComponent(rawPostId) : undefined;
+  const postId = rawPostId || undefined;
   const navigate = useNavigate();
   const { sdk, core } = useShogun();
   const shogunCore = sdk || core;
-  const { socialNetwork, isReady, getPostAuthor } = useSocialProtocol();
+  const { socialNetwork, isReady, getPostAuthor, getUserProfile } = useSocialProtocol();
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { replies, loading: repliesLoading } = useReplies(postId || '');
+  // Use decoded version for replies
+  const { replies, loading: repliesLoading } = useReplies(postIdDecoded || postId || '');
 
   useEffect(() => {
-    if (!isReady || !socialNetwork || !postId || !shogunCore?.gun) {
+    // Use decoded version if available, otherwise use raw
+    const searchPostId = postIdDecoded || postId;
+    
+    if (!isReady || !socialNetwork || !searchPostId || !shogunCore?.gun) {
       if (!isReady || !socialNetwork) {
         setLoading(false);
         return;
       }
-      if (!postId) {
+      if (!searchPostId) {
         setError('Post ID not provided');
         setLoading(false);
         return;
@@ -32,28 +39,69 @@ export const PostDetail: React.FC = () => {
       return;
     }
 
+    console.log('Loading post with ID (raw):', postId);
+    console.log('Loading post with ID (decoded):', postIdDecoded);
+    console.log('Using search ID:', searchPostId);
     setLoading(true);
     setError(null);
 
     const gun = shogunCore.gun;
     const appName = 'shogun-mistodon-clone-v1';
     let found = false;
+    let cleanupFunctions: Array<() => void> = [];
 
-    const loadPostFromSoul = (postSoul: string) => {
+    const loadPostFromSoul = (postSoul: string, source: string) => {
       if (!postSoul || typeof postSoul !== 'string' || found) return;
       
+      console.log(`Found post soul from ${source}:`, postSoul);
       found = true;
       
       // Get the actual post data using the soul
-      gun.get(postSoul).once((postData: any) => {
-        if (postData && typeof postData === 'object') {
+      console.log('Loading post data from soul:', postSoul);
+      const postDataNode = gun.get(postSoul);
+      let postDataReceived = false;
+      
+      // Use .on() to listen for data (may not be immediately available)
+      const postDataListener = (postData: any) => {
+        // Skip if we already processed this or if data is not ready
+        if (postDataReceived || !postData) return;
+        
+        // Wait for actual data (not just the node reference)
+        if (typeof postData === 'object' && postData._ !== null) {
+          postDataReceived = true;
+          console.log('Post data received:', postData);
+          
+          // Clean up listener once we have data
+          try {
+            postDataNode.off(postDataListener);
+          } catch (e) {
+            console.warn('Error removing post data listener:', e);
+          }
+          
           const { _, ...cleanPostData } = postData;
+          console.log('Clean post data:', cleanPostData);
+          
+          // Validate that we have at least author and content
+          const postAuthor = cleanPostData.authorPub || cleanPostData.author || '';
+          const postContent = cleanPostData.text || cleanPostData.content || '';
+          
+          if (!postAuthor || !postContent) {
+            console.warn('Post missing required fields - author:', postAuthor, 'content:', postContent);
+            if (!found) {
+              found = false;
+              return;
+            } else {
+              setError('Post data is incomplete (missing author or content)');
+              setLoading(false);
+              return;
+            }
+          }
           
           // Convert to Post format (content-addressed uses authorPub/text)
           const post: Post = {
-            id: postId, // Use hash as ID
-            author: cleanPostData.authorPub || cleanPostData.author || '',
-            content: cleanPostData.text || cleanPostData.content || '',
+            id: searchPostId, // Use hash as ID
+            author: postAuthor,
+            content: postContent,
             timestamp: cleanPostData.timestamp || Date.now(),
             likes: cleanPostData.likes || {},
             reposts: cleanPostData.reposts || {},
@@ -61,9 +109,11 @@ export const PostDetail: React.FC = () => {
             media: cleanPostData.media || undefined,
           };
 
+          console.log('Post object created:', post);
+
           // Get likes/reposts from interactions node (posts are immutable)
-          const likesNode = gun.get(appName).get('posts').get(postId).get('likes');
-          const repostsNode = gun.get(appName).get('posts').get(postId).get('reposts');
+          const likesNode = gun.get(appName).get('posts').get(searchPostId).get('likes');
+          const repostsNode = gun.get(appName).get('posts').get(searchPostId).get('reposts');
           
           // Load likes
           const likes: Record<string, boolean> = {};
@@ -85,79 +135,224 @@ export const PostDetail: React.FC = () => {
           setTimeout(() => {
             post.likes = likes;
             post.reposts = reposts;
+            console.log('Loading author profile for post:', searchPostId);
+            console.log('Post authorPub:', post.author);
             
-            // Use getPostAuthor (bidirectional reference) instead of getUserProfile
-            getPostAuthor(postId, (profile) => {
-              setPost({
-                ...post,
-                authorProfile: {
-                  username: profile.displayName,
-                  avatar: profile.avatarCid,
-                  bio: profile.bio,
-                },
-              });
+            let profileLoaded = false;
+            const setPostWithProfile = (profile: any) => {
+              if (profileLoaded) return;
+              profileLoaded = true;
+              
+              console.log('Author profile received:', profile);
+              if (profile && profile.displayName) {
+                setPost({
+                  ...post,
+                  authorProfile: {
+                    username: profile.displayName,
+                    avatar: profile.avatarCid,
+                    bio: profile.bio,
+                  },
+                });
+              } else {
+                // Set post without profile if profile is not available
+                console.warn('Author profile not available, setting post without profile');
+                setPost(post);
+              }
+              console.log('Post set in state, loading complete');
               setLoading(false);
-            });
+            };
+            
+            // Method 1: Try getPostAuthor (bidirectional reference)
+            try {
+              getPostAuthor(searchPostId, setPostWithProfile);
+            } catch (error) {
+              console.error('Error calling getPostAuthor:', error);
+            }
+            
+            // Method 2: Fallback - use authorPub directly if we have it
+            if (post.author) {
+              const fallbackTimeout = setTimeout(async () => {
+                if (!profileLoaded) {
+                  console.log('getPostAuthor timeout, trying direct getUserProfile with authorPub:', post.author);
+                  try {
+                    const profile = await getUserProfile(post.author);
+                    setPostWithProfile(profile);
+                  } catch (error) {
+                    console.error('Error getting user profile directly:', error);
+                    // Final fallback: set post without profile
+                    if (!profileLoaded) {
+                      setPost(post);
+                      setLoading(false);
+                    }
+                  }
+                }
+              }, 2000); // Wait 2 seconds for getPostAuthor
+              
+              cleanupFunctions.push(() => {
+                clearTimeout(fallbackTimeout);
+              });
+            } else {
+              // No authorPub, set post without profile
+              if (!profileLoaded) {
+                console.warn('No authorPub in post, setting post without profile');
+                setPost(post);
+                setLoading(false);
+              }
+            }
           }, 100);
         } else {
-          setError('Post data not found');
-          setLoading(false);
+          console.warn('Post data invalid or null:', postData);
+          console.warn('Post data type:', typeof postData);
+          console.warn('Post data _ value:', postData?._);
+          if (!found) {
+            // Don't set error yet, try other methods
+            found = false;
+          } else {
+            // If we already found it but data is invalid, show error
+            setError('Post data is invalid or corrupted');
+            setLoading(false);
+          }
+        }
+      };
+      
+      postDataNode.on(postDataListener);
+      cleanupFunctions.push(() => {
+        try {
+          postDataNode.off(postDataListener);
+        } catch (e) {
+          console.warn('Error cleaning up postDataNode listener:', e);
         }
       });
     };
 
+    // Try both raw and decoded versions of the postId
+    const postIdsToTry = [searchPostId];
+    if (postIdDecoded && postIdDecoded !== postId) {
+      postIdsToTry.push(postIdDecoded);
+    }
+    if (postId && postId !== searchPostId && postId !== postIdDecoded) {
+      postIdsToTry.push(postId);
+    }
+
     // Method 1: Try to get post from content-addressed storage (#posts)
-    const hashNode = gun.get('#posts').get(postId);
-    hashNode.on((postSoul: string) => {
-      if (postSoul && typeof postSoul === 'string') {
-        loadPostFromSoul(postSoul);
-      }
+    postIdsToTry.forEach(tryPostId => {
+      const hashNode = gun.get('#posts').get(tryPostId);
+      const hashListener = (postSoul: string) => {
+        if (postSoul && typeof postSoul === 'string') {
+          loadPostFromSoul(postSoul, `#posts-${tryPostId}`);
+        }
+      };
+      hashNode.on(hashListener);
+      cleanupFunctions.push(() => {
+        try {
+          hashNode.off(hashListener);
+        } catch (e) {
+          console.error('Error cleaning up hashNode listener:', e);
+        }
+      });
     });
 
-    // Method 2: Try to find in timeline (check last 7 days)
+    // Method 2: Try to find in timeline (check last 30 days for better coverage)
     const today = new Date();
     const timelineListeners: Array<() => void> = [];
     
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const timeKey = date.toISOString().split('T')[0];
-      
-      const timelineNode = gun.get(appName).get('timeline').get(timeKey).get(postId);
-      timelineNode.on((postSoul: string) => {
-        if (postSoul && typeof postSoul === 'string') {
-          loadPostFromSoul(postSoul);
-        }
-      });
-      
-      timelineListeners.push(() => {
-        try {
-          timelineNode.off();
-        } catch (e) {
-          // Ignore cleanup errors
-        }
-      });
-    }
+    postIdsToTry.forEach(tryPostId => {
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const timeKey = date.toISOString().split('T')[0];
+        
+        const timelineNode = gun.get(appName).get('timeline').get(timeKey).get(tryPostId);
+        const timelineListener = (postSoul: string) => {
+          if (postSoul && typeof postSoul === 'string') {
+            loadPostFromSoul(postSoul, `timeline-${timeKey}-${tryPostId}`);
+          }
+        };
+        timelineNode.on(timelineListener);
+        
+        timelineListeners.push(() => {
+          try {
+            timelineNode.off(timelineListener);
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        });
+      }
+    });
+    cleanupFunctions.push(...timelineListeners);
 
-    // Timeout after 8 seconds if post not found (more time for sync)
+    // Method 3: Try to find through bidirectional post references
+    postIdsToTry.forEach(tryPostId => {
+      const postNode = gun.get(appName).get('posts').get(tryPostId);
+      const postNodeListener = (data: any) => {
+        if (data && data._ && data._['#']) {
+          const postSoul = data._['#'];
+          loadPostFromSoul(postSoul, `bidirectional-post-node-${tryPostId}`);
+        }
+      };
+      postNode.on(postNodeListener);
+      cleanupFunctions.push(() => {
+        try {
+          postNode.off(postNodeListener);
+        } catch (e) {
+          console.error('Error cleaning up postNode listener:', e);
+        }
+      });
+    });
+
+    // Method 4: Search through all users' posts (fallback - slower but more thorough)
+    const usersNode = gun.get('users');
+    let userSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+    
+    // Only do this if other methods fail
+    const startUserSearch = setTimeout(() => {
+      if (!found) {
+        console.log('Trying user posts search as fallback...');
+        usersNode.map().on((userData: any, userPub: string) => {
+          if (found || !userPub || userPub.startsWith('_')) return;
+          
+          postIdsToTry.forEach(tryPostId => {
+              userPostsNode.on((postEntry: any) => {
+              if (found) return;
+              if (postEntry && postEntry.soul && typeof postEntry.soul === 'string') {
+                loadPostFromSoul(postEntry.soul, `user-${userPub}-${tryPostId}`);
+              } else if (postEntry && typeof postEntry === 'string') {
+                loadPostFromSoul(postEntry, `user-${userPub}-${tryPostId}`);
+              }
+            });
+          });
+        });
+        
+        userSearchTimeout = setTimeout(() => {
+          usersNode.map().off();
+        }, 5000);
+      }
+    }, 3000);
+
+    // Timeout after 10 seconds if post not found (more time for sync)
     const timeout = setTimeout(() => {
       if (!found) {
-        setError('Post not found');
+        console.error('Post not found after 10 seconds. PostId (raw):', postId);
+        console.error('Post not found after 10 seconds. PostId (decoded):', postIdDecoded);
+        console.error('Post not found after 10 seconds. Search ID:', searchPostId);
+        setError('Post not found. It may not exist or may not have synced yet.');
         setLoading(false);
       }
-    }, 8000);
+    }, 10000);
 
     return () => {
       clearTimeout(timeout);
-      try {
-        hashNode.off();
-        // Clean up timeline listeners
-        timelineListeners.forEach(cleanup => cleanup());
-      } catch (e) {
-        console.error('Error cleaning up post listener:', e);
-      }
+      if (userSearchTimeout) clearTimeout(userSearchTimeout);
+      if (startUserSearch) clearTimeout(startUserSearch);
+      cleanupFunctions.forEach(cleanup => {
+        try {
+          cleanup();
+        } catch (e) {
+          console.error('Error during cleanup:', e);
+        }
+      });
     };
-  }, [isReady, socialNetwork, postId, shogunCore, getPostAuthor]);
+  }, [isReady, socialNetwork, postId, postIdDecoded, shogunCore, getPostAuthor, getUserProfile]);
 
   if (!isReady) {
     return (
