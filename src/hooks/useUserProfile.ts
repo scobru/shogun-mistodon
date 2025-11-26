@@ -34,7 +34,6 @@ export function useUserProfile(userPub?: string): UseUserProfileReturn {
   const loadProfile = useCallback(() => {
     if (!shogunCore?.gun || !targetUserPub) {
       setLoading(false);
-      setProfile(null);
       return () => {}; // Return empty cleanup function
     }
 
@@ -115,7 +114,7 @@ export function useUserProfile(userPub?: string): UseUserProfileReturn {
               if (timeoutId) {
                 clearTimeout(timeoutId);
               }
-              console.log(`[Profile] Profile loaded from ${source}`);
+              // console.log(`[Profile] Profile loaded from ${source}`);
             }
             setProfile(processed);
             setLoading(false);
@@ -166,7 +165,7 @@ export function useUserProfile(userPub?: string): UseUserProfileReturn {
       // Increased timeout to allow GunDB to sync from peers after refresh
       timeoutId = setTimeout(() => {
         if (!hasLoaded) {
-          console.log('[Profile] Profile load timeout, assuming no profile exists');
+          // console.log('[Profile] Profile load timeout, assuming no profile exists');
           setProfile(null);
           setLoading(false);
         }
@@ -183,7 +182,7 @@ export function useUserProfile(userPub?: string): UseUserProfileReturn {
           if (userSpaceListener) {
             userSpaceListener();
           }
-          console.log('[Profile] Cleaned up profile listeners');
+          // console.log('[Profile] Cleaned up profile listeners');
         } catch (e) {
           console.error('Error cleaning up profile listener:', e);
         }
@@ -232,7 +231,7 @@ export function useUserProfile(userPub?: string): UseUserProfileReturn {
           createdAt: currentProfile?.createdAt || Date.now(),
         };
 
-        console.log('Updating profile:', updatedProfile);
+        // console.log('Updating profile:', updatedProfile);
 
         // Save to BOTH paths for compatibility:
         // 1. Public path: users/{userPub}/profile (for public access)
@@ -243,7 +242,7 @@ export function useUserProfile(userPub?: string): UseUserProfileReturn {
           user.get('profile').put(updatedProfile);
         }
 
-        console.log('Profile saved successfully to both paths');
+        // console.log('Profile saved successfully to both paths');
 
         // Verify the save by reading back after a short delay
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -257,7 +256,7 @@ export function useUserProfile(userPub?: string): UseUserProfileReturn {
                 savedProfile.avatar === updatedProfile.avatar ||
                 savedProfile.bio === updatedProfile.bio) {
               verified = true;
-              console.log('Profile save verified');
+              // console.log('Profile save verified');
             }
           }
         });

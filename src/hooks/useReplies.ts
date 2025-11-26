@@ -36,7 +36,15 @@ export function useReplies(postId: string): UseRepliesReturn {
         if (replySoul && typeof replySoul === 'string') {
           // Get the actual reply data using the soul (content-addressed)
           gun.get(replySoul).once((replyData: any) => {
-            if (!replyData || typeof replyData !== 'object') {
+            if (!replyData || typeof replyData !== 'object' || replyData._ === null) {
+              // Filter out null or undefined data (deleted replies)
+              if (repliesMap.has(replyHash)) {
+                repliesMap.delete(replyHash);
+                const repliesArray = Array.from(repliesMap.values()).sort(
+                  (a, b) => a.timestamp - b.timestamp
+                );
+                setReplies(repliesArray);
+              }
               return;
             }
 
@@ -75,6 +83,18 @@ export function useReplies(postId: string): UseRepliesReturn {
     // Listen for reply entries (content-addressed - contains hash explicitly)
     repliesNode.map().on((replyEntry: any, key: string) => {
       if (!key || key.startsWith('_')) {
+        return;
+      }
+
+      // If replyEntry is null or undefined, it means the reply has been deleted
+      if (replyEntry === null || typeof replyEntry === 'undefined') {
+        if (repliesMap.has(key)) {
+          repliesMap.delete(key);
+          const repliesArray = Array.from(repliesMap.values()).sort(
+            (a, b) => a.timestamp - b.timestamp
+          );
+          setReplies(repliesArray);
+        }
         return;
       }
 

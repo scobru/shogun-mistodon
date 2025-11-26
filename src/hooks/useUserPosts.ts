@@ -42,8 +42,6 @@ export function useUserPosts(userPub: string): UseUserPostsReturn {
     const processedPosts = new Set<string>(); // Track processed posts to prevent duplicates
     const listeners = new Map<string, any>(); // Track individual post listeners
 
-    console.log('Loading posts for user:', userPub, 'isCurrentUser:', isCurrentUser);
-
     // Listen for user's post indices (content-addressed - contains hash/soul)
     userPostsNode.map().on((data: any, hash: string) => {
       // Skip if already processed
@@ -77,7 +75,6 @@ export function useUserPosts(userPub: string): UseUserPostsReturn {
       }
       
       processedPosts.add(postId);
-      console.log('Found post index:', postId, 'for user:', userPub, 'isRepost:', isRepost);
 
       // Get the actual post data using the soul (content-addressed)
       gun.get(postSoul).once((postData: any) => {
@@ -118,7 +115,6 @@ export function useUserPosts(userPub: string): UseUserPostsReturn {
 
             // Final check before adding to map
             if (!postsMap.has(postId)) {
-              console.log('Adding post to user profile:', post.id, 'isRepost:', isRepost);
               postsMap.set(postId, post);
               
               // Convert to array and sort by timestamp (newest first)
@@ -130,20 +126,11 @@ export function useUserPosts(userPub: string): UseUserPostsReturn {
               setLoading(false);
             }
           } else {
-            console.log('Skipping post in user profile (not user post and not repost):', postId, 'author:', postAuthor, 'userPub:', userPub);
             processedPosts.delete(postId);
           }
         } else {
           // Post is missing required fields - might still be syncing, wait a bit longer
           // Don't delete from processedPosts immediately, give it time to sync
-          console.log('Post missing required fields (may still be syncing):', { 
-            postId, 
-            hasAuthor: !!postAuthor, 
-            hasContent: !!postContent,
-            hasAuthorPub: !!postPostData.authorPub,
-            hasText: !!postPostData.text
-          });
-          // Don't delete from processedPosts - let it retry on next sync
         }
       });
 
@@ -213,7 +200,6 @@ export function useUserPosts(userPub: string): UseUserPostsReturn {
     // Set loading to false after initial load attempt
     // Increase timeout to allow GunDB to sync from peers
     const timeoutId = setTimeout(() => {
-      console.log('User posts load timeout, current posts count:', postsMap.size);
       setLoading(false);
     }, 5000); // Increased to 5 seconds to allow peer sync
 

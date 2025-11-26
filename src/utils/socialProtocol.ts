@@ -511,16 +511,29 @@ export class SocialNetwork {
 
   /**
    * Delete a post (only if user is the author)
-   * Updated for content-addressed storage
+   * Updated for content-addressed storage. This function handles the "cancellation" of a post or a reply
+   * by removing all its references across various GunDB indices, as content-addressed data is immutable.
+   *
+   * Key steps include:
+   * 1. Verifying ownership of the post/reply.
+   * 2. Removing the post/reply from the user's public posts index (`users/{userPub}/posts`).
+   * 3. Removing the post/reply from the global timeline.
+   * 4. Removing associated hashtag references (bidirectional).
+   * 5. Removing bidirectional User ↔ Post references.
+   * 6. If the post is a reply, removing its reference from the parent post's `replies` list and
+   *    removing the `replyTo` reference from the reply itself.
+   * 7. Recursively removing all replies to the deleted post, ensuring a clean cascade deletion.
+   *    This step ensures that when a parent post is deleted, all its comments (replies) are also effectively removed.
+   *    The `deletePost` function is robust enough to handle the deletion of a reply when called with the reply's ID.
    */
   async deletePost(postId: string): Promise<{ success: boolean; error?: string }> {
     if (!this.isAuthenticated()) {
-      return { success: false, error: 'Not authenticated' };
+      return { success: false, error: 'Non sei loggato' };
     }
 
     const userPub = this.getCurrentUserPub();
     if (!userPub) {
-      return { success: false, error: 'User pub not found' };
+      return { success: false, error: 'Chiave pubblica utente non trovata' };
     }
 
     try {
